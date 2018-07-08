@@ -1,0 +1,1237 @@
+using System;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Data;
+using System.Drawing;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Windows.Forms;
+using System.IO;
+using Nuve.Lang;
+using Nuve.Morphologic.Structure;
+
+namespace WindowsFormsApplication3
+{
+    public partial class Form1 : Form
+    {
+        public Form1()
+        {
+            InitializeComponent();
+        }
+
+        string[] kelimeler = new string[100000];     //haberden alinan islenmemis kelime dizisi
+        int kelimeler_indis = 0;
+        string[,] test_verisi = new string[287, 2];
+
+        string[] gram2 = new string[100000];         // 2-gram kelime dizisi
+        string[] gram3 = new string[100000];         // 3-gram kelime dizisi
+        string[] farkli50_2 = new string[100000];    // birbirinden farkli 2gramlar
+        string[] farkli50_3 = new string[100000];    // birbirinden farkli 3gramlar
+        int farkli50_2sayac = 0;
+        int farkli50_3sayac = 0;
+
+        string[] test_farkli50_2 = new string[100000];    // birbirinden farkli 2gramlar
+        string[] test_farkli50_3 = new string[100000];    // birbirinden farkli 2gramlar
+        int test_farkli50_2sayac = 0;
+        int test_farkli50_3sayac = 0;
+
+        string[,] gram2_50 = new string[100000, 9]; // Frekans degeri 50 uzeri olan 2-gram dizisi [2gram, frekans, haber adi, haber turu]
+        // [4:ekonomi] [5:magazin] [6:saglik] [7:siyasi] [8:spor] 2gram degerinin her haber kategorisine ait kosullu olasilik degerleri
+
+        string[,] gram3_50 = new string[100000, 9]; // Frekans degeri 50 uzeri olan 3-gram dizisi [3gram, frekans, haber adi, haber turu]
+        // [4:ekonomi] [5:magazin] [6:saglik] [7:siyasi] [8:spor] 3gram degerinin her haber kategorisine ait kosullu olasilik degerleri
+        int gram2_50_sayac = 0;
+        int gram3_50_sayac = 0;
+
+        string[,] test_verisi50_2 = new string[100000, 26]; //Frekans > 50 olan 2-gram TEST VERISI [2gram, frekans, haber adi, haber turu]
+        // [4 :ekonomi][5 :magazin][6 :saglik][7 :siyasi][8 :spor] 2gram degerinin her haber kategorisine ait kosullu olasilik degerleri
+        // [9 :ekonomi][10:magazin][11:saglik][12:siyasi][13:spor] test sonucu her kategoriye ait beklenen degerleri
+        // [14:ekonomi][15:magazin][16:saglik][17:siyasi][18:spor] habere ait 2gramlarin toplam ortalamasi
+        // [19:ekonomi][20:magazin][21:saglik][22:siyasi][23:spor] 2 gram ve 3 gramlarin toplam ortalamasi
+        // [24: haber tespiti (SONUC)][25: haber tespiti 2gram + 3gram]
+        string[,] test_verisi50_3 = new string[100000, 26]; //Frekans > 50 olan 3-gram TEST VERISI [2gram, frekans, haber adi, haber turu]
+        // [4:ekonomi ][5:magazin ][6:saglik ][7:siyasi ][8:spor ] 3gram degerinin her haber kategorisine ait kosullu olasilik degerleri
+        // [9:ekonomi ][10:magazin][11:saglik][12:siyasi][13:spor] test sonucu her kategoriye ait beklenen degerleri
+        // [14:ekonomi][15:magazin][16:saglik][17:siyasi][18:spor] habere ait 3gramlarin toplam ortalamasi
+        // [19:ekonomi][20:magazin][21:saglik][22:siyasi][23:spor] 2 gram ve 3 gramlarin toplam ortalamasi
+        // [24: haber tespiti (SONUC)][25: haber tespiti 2gram + 3gram]
+        int test_veri2_50_sayac = 0;
+        int test_veri3_50_sayac = 0;
+
+        int kac_haber_okunacak = 5;                                                                           //kac haber okunacak
+
+        int[] kosullu_olasilik_indis2 = new int[100000];
+        int k_olasilik_indis_sayac2 = 0;
+        int[] kosullu_olasilik_tekil2 = new int[100000];
+        int kosullu_olasilik_tekil_sayac2 = 0;
+
+        int[] kosullu_olasilik_indis3 = new int[100000];
+        int k_olasilik_indis_sayac3 = 0;
+        int[] kosullu_olasilik_tekil3 = new int[100000];
+        int kosullu_olasilik_tekil_sayac3 = 0;
+
+        public void rastgele_sayi(string[,] rast_dizi)
+        {
+            Random rastgele = new Random();
+            int rast_sayi /*=rastgele.Next(1, 1151);*/ ;
+            int sayac = 0;
+            int i;
+            Boolean esit;
+
+
+            while (sayac != 1150)
+            {
+                rast_sayi = rastgele.Next(1, 1151);
+                esit = false;
+                for (i = 0; i < sayac; i++)
+                {
+                    if (string.Equals(rast_dizi[i, 0], rast_sayi.ToString()) == true)
+                        esit = true;
+                }
+
+                if (esit == false)
+                {
+                    rast_dizi[sayac, 0] = rast_sayi.ToString();
+                    sayac++;
+                }
+            }
+        }
+        public void haber_ayarla(string[,] rastgele_dizi, string[,] test_data)
+        {
+            int i;
+            int test_data_sayac = 0;
+
+            for (i = 0; i < 1150; i++)
+            {
+                int temp = Int32.Parse(rastgele_dizi[i, 0]);
+
+                if (temp <= 150)
+                    rastgele_dizi[i, 1] = "ekonomi";
+
+                if (temp > 150 && temp <= 230)
+                {
+                    rastgele_dizi[i, 0] = "Kopyas " + (temp - 150).ToString();
+                    rastgele_dizi[i, 1] = "ekonomi";
+                }
+                if (temp > 230 && temp <= 380)
+                {
+                    rastgele_dizi[i, 0] = (temp - 80).ToString();
+                    rastgele_dizi[i, 1] = "magazin";
+                }
+                if (temp > 380 && temp <= 460)
+                {
+                    rastgele_dizi[i, 0] = "Kopyas " + (temp - 300).ToString();
+                    rastgele_dizi[i, 1] = "magazin";
+                }
+                if (temp > 460 && temp <= 610)
+                {
+                    rastgele_dizi[i, 0] = (temp - 160).ToString();
+                    rastgele_dizi[i, 1] = "saglik";
+                }
+                if (temp > 610 && temp <= 690)
+                {
+                    rastgele_dizi[i, 0] = "Kopyas " + (temp - 450).ToString();
+                    rastgele_dizi[i, 1] = "saglik";
+                }
+                if (temp > 690 && temp <= 840)
+                {
+                    rastgele_dizi[i, 0] = (temp - 240).ToString();
+                    rastgele_dizi[i, 1] = "siyasi";
+                }
+                if (temp > 840 && temp <= 920)
+                {
+                    rastgele_dizi[i, 0] = "Kopyas " + (temp - 600).ToString();
+                    rastgele_dizi[i, 1] = "siyasi";
+                }
+                if (temp > 920 && temp <= 1070)
+                {
+                    rastgele_dizi[i, 0] = (temp - 320).ToString();
+                    rastgele_dizi[i, 1] = "spor";
+                }
+                if (temp > 1070 && temp <= 1150)
+                {
+                    rastgele_dizi[i, 0] = "Kopyas " + (temp - 750).ToString();
+                    rastgele_dizi[i, 1] = "spor";
+                }
+
+                //test data dizisini duzenler
+                if (i > 862 && i <= 1150)
+                {
+                    test_data[test_data_sayac, 0] = rastgele_dizi[i, 0];
+                    test_data[test_data_sayac, 1] = rastgele_dizi[i, 1];
+                    test_data_sayac++;
+                }
+            }
+
+
+        }
+
+        private void veri_al_Click(object sender, EventArgs e)
+        {
+            int i, j, k, l;
+            int satir = 0;
+            int gram2_sayac;
+            int gram3_sayac;
+
+            string[,] rastgele_dizi = new string[1150, 2]; //1150 haberi rastgele sirayla listeler
+            rastgele_sayi(rastgele_dizi);
+            haber_ayarla(rastgele_dizi, test_verisi);
+
+            //rastgele dizisini gosterir
+            for (i = 0; i < kac_haber_okunacak; i++)
+                listBox1.Items.Add(rastgele_dizi[i, 0] + " - " + rastgele_dizi[i, 1]);
+
+            /*//test verisini gosterir
+            for (i = 0; i < 287; i++)
+                listBox4.Items.Add(test_verisi[i,0]+ " - " +test_verisi[i,1]);*/
+
+            Boolean esit;
+
+            /**
+             * dongu burdan baslar
+             * */
+            //haberi al islenmemis kelimeler dizisine aktar
+            //Train Data (Egitim verisini hazirlar (haberlerin %75i))  
+            for (k = 0; k < kac_haber_okunacak; k++)
+            {
+                kelimeler_indis = 0;
+                gram2_sayac = 0;
+                gram3_sayac = 0;
+                satir = 0;
+
+                string dosya_yolu = @"C:\Users\Ned\Documents\visual studio 2015\Projects\WindowsFormsApplication3\WindowsFormsApplication3\1150haber\raw_texts\" + rastgele_dizi[k, 1] + "\\" + rastgele_dizi[k, 0] + ".txt";
+                FileStream fs = new FileStream(dosya_yolu, FileMode.Open, FileAccess.Read);
+                StreamReader sw = new StreamReader(fs, Encoding.GetEncoding("iso-8859-9"), false);
+                string yazi = sw.ReadLine();
+                
+                while (yazi != null)
+                {
+                    yazi = yazi.Replace(".", "");
+                    yazi = yazi.Replace(",", "");
+                    yazi = yazi.Replace("_", " ");
+                    yazi = yazi.Replace("-", " ");
+                    yazi = yazi.Replace("!", "");
+                    yazi = yazi.Replace("?", "");
+                    yazi = yazi.Replace("'", "");
+                    yazi = yazi.Replace("\"", "");
+
+                    Language tr = LanguageFactory.Create(LanguageType.Turkish);
+
+                    int a = 0;
+                    string[] c = yazi.Split();
+                    kelimeler_indis = c.Length;
+
+                    //int d = yazi.Split(ayrac, StringSplitOptions.RemoveEmptyEntries).Length;
+
+                    while (a != c.Length)
+                    {
+                        c[a] = c[a].ToLower();
+                        if (string.Equals(c[a], " ") == false)
+                        {
+                            string kok = c[a];
+                            IList<Word> solutions = tr.Analyze(c[a]);
+
+                            foreach (var solution in solutions)
+                            {
+                                //kelimeler[kelimeler_indis] = solution.GetStem().GetSurface();
+                                kelimeler[0] = string.Concat(kelimeler[0], " " + solution.GetStem().GetSurface());
+                                // kelimeler_indis++;
+                            }
+                        }
+                        a++;
+                    }
+                    yazi = sw.ReadLine();
+                }
+
+                sw.Close();
+                fs.Close();
+
+                //2 gram ve 3 gram dizilerine kelimeleri ayristir.
+                int uzunluk = 0;
+                int substr2 = 0;
+                int substr3 = 0;
+                string isle2 = "";
+                string isle3 = "";
+                Boolean gram2_k;
+                Boolean gram3_k;
+                int metin_uzunlugu = 0;
+
+                for (i = 0; i < 1; i++)
+                {
+
+                                                                                                //hizli derlenen kisim
+                 /*   while (yazi != null)
+                {
+                    kelimeler[satir] = yazi;
+                    yazi = sw.ReadLine();
+                    satir++;
+                }
+                sw.Close();
+                fs.Close();
+
+                //2 gram ve 3 gram dizilerine kelimeleri ayristir.
+                int uzunluk = 0;
+                int substr2 = 0;
+                int substr3 = 0;
+                string isle2 = "";
+                string isle3 = "";
+                Boolean gram2_k;
+                Boolean gram3_k;
+                int metin_uzunlugu = 0;
+
+                for (i = 0; i < satir; i++)
+                {      */                                                                           //buraya kadar
+                    uzunluk = kelimeler[i].Length;
+                    metin_uzunlugu += uzunluk;
+                    substr2 = 0;
+                    substr3 = 0;
+
+                    if (uzunluk != 0)// bos satirlari atladik
+                    {
+                        for (j = 0; j < uzunluk; j++)//
+                        {
+                            gram2_k = false;
+                            gram3_k = false;
+
+                            if (substr2 < uzunluk - 1)
+                            {
+                                isle2 = kelimeler[i].Substring(substr2, 2);
+                                substr2++;
+                                gram2_k = true;
+                            }
+                            if (substr3 < uzunluk - 2)
+                            {
+                                isle3 = kelimeler[i].Substring(substr3, 3);
+                                substr3++;
+                                gram3_k = true;
+                            }
+                            Boolean var_mi;
+                            Boolean var_mi3;
+                            var_mi = isle2.Contains(" ");
+                            var_mi3 = isle3.Contains(" ");
+
+                            if (var_mi == true)
+                                isle2 = isle2.Replace(" ", "_");
+
+                            if (var_mi3 == true)
+                                isle3 = isle3.Replace(" ", "_");
+
+                            if (substr2 < uzunluk && gram2_k == true)
+                            {
+                                gram2[gram2_sayac] = isle2;
+                                gram2_sayac++;
+                            }
+                            if (substr3 < uzunluk - 1 && gram3_k == true)
+                            {
+                                gram3[gram3_sayac] = isle3;
+                                gram3_sayac++;
+                            }
+                        }
+                    }
+                }
+                //frekans sonucu hesapla
+                string[,] frekans_hesapla_2 = new string[gram2.Length, 2]; //[2gram ismi], [frekans degeri]
+                string[,] frekans_hesapla_3 = new string[gram3.Length, 2]; //[3gram ismi], [frekans degeri]
+
+                int frekans_hesapla_sayac2 = 0;
+                int frekans_hesapla_sayac3 = 0;
+
+                string[] frekans_check2 = new string[gram2.Length];        // frekans degeri gozden gecirilen 2gram
+                string[] frekans_check3 = new string[gram3.Length];        // frekans degeri gozden gecirilen 3gram
+
+                for (i = 0; i < frekans_check2.Length; i++)
+                    frekans_check2[i] = "";
+
+                int check_sayac2 = 0;
+                int check_sayac3 = 0;
+
+                string gram2_tmp;
+                string gram3_tmp;
+                int frekans_degeri2;
+                int frekans_degeri3;
+
+                Boolean gram2_esit;
+                Boolean gram2_var_mi;
+                Boolean gram2_var;
+
+                Boolean gram3_esit;
+                Boolean gram3_var_mi;
+                Boolean gram3_var;
+
+                for (i = 0; i < gram2_sayac; i++)                 //2-gram hesap
+                {
+                    gram2_var_mi = false;
+                    gram2_var = false;
+                    frekans_degeri2 = 1;
+                    gram2_tmp = gram2[i];
+
+                    for (j = 0; j < gram2.Length; j++)
+                    {
+                        gram2_var_mi = string.Equals(gram2_tmp, frekans_check2[j]);
+
+                        if (gram2_var_mi == true)
+                            gram2_var = true;
+                    }
+
+                    if (gram2_var == false) //2gram kombinasyonu daha once kullanilmamissa
+                    {
+                        frekans_check2[check_sayac2] = gram2_tmp; // gozden gecirildi listesine eklendi
+                        check_sayac2++;
+
+                        for (j = i + 1; j < gram2.Length; j++)
+                        {
+                            gram2_esit = string.Equals(gram2_tmp, gram2[j]);
+
+                            if (gram2_esit == true)
+                                frekans_degeri2++;
+                        }
+                        frekans_hesapla_2[frekans_hesapla_sayac2, 0] = gram2_tmp;
+                        frekans_hesapla_2[frekans_hesapla_sayac2, 1] = frekans_degeri2.ToString();
+                        frekans_hesapla_sayac2++;
+
+                        if (frekans_degeri2 > 50 && k <= ((kac_haber_okunacak / 4) * 3))//egitim verisi icin hazirlanan 2 gramlar (%75)
+                        {
+
+                            Boolean var2 = false;
+                            gram2_50[gram2_50_sayac, 0] = gram2_tmp;
+                            gram2_50[gram2_50_sayac, 1] = frekans_degeri2.ToString();
+                            gram2_50[gram2_50_sayac, 2] = rastgele_dizi[k, 0];
+                            gram2_50[gram2_50_sayac, 3] = rastgele_dizi[k, 1];
+
+                            gram2_50_sayac++;
+
+                            for (j = 0; j < farkli50_2sayac; j++)           //farkli50_2 
+                            {
+                                if (string.Equals(gram2_tmp, farkli50_2[j]) == true)
+                                    var2 = true;
+
+                            }
+                            if (var2 == false)
+                            {
+                                farkli50_2[farkli50_2sayac] = gram2_tmp;
+                                farkli50_2sayac++;
+                            }
+                        }
+                        if (frekans_degeri2 > 50 && k > ((kac_haber_okunacak / 4) * 3))//TEST VERISI icin hazirlanan 2 gramlar (%25)
+                        {
+                            Boolean var2 = false;
+                            test_verisi50_2[test_veri2_50_sayac, 0] = gram2_tmp;
+                            test_verisi50_2[test_veri2_50_sayac, 1] = frekans_degeri2.ToString();
+                            test_verisi50_2[test_veri2_50_sayac, 2] = rastgele_dizi[k, 0];
+                            test_verisi50_2[test_veri2_50_sayac, 3] = rastgele_dizi[k, 1];
+
+                            test_veri2_50_sayac++;
+
+                            for (j = 0; j < test_farkli50_2sayac; j++)           //farkli50_2 
+                            {
+                                if (string.Equals(gram2_tmp, test_farkli50_2[j]) == true)
+                                    var2 = true;
+
+                            }
+                            if (var2 == false)
+                            {
+                                test_farkli50_2[farkli50_2sayac] = gram2_tmp;
+                                test_farkli50_2sayac++;
+                            }
+                        }
+                    }
+                }
+                for (i = 0; i < gram3_sayac; i++)           //3-gram hesap 
+                {
+                    gram3_var_mi = false;
+                    gram3_var = false;
+                    frekans_degeri3 = 1;
+                    gram3_tmp = gram3[i];
+
+                    for (j = 0; j < gram3.Length; j++)
+                    {
+                        gram3_var_mi = string.Equals(gram3_tmp, frekans_check3[j]);
+
+                        if (gram3_var_mi == true)
+                            gram3_var = true;
+                    }
+
+                    if (gram3_var == false) //3gram kombinasyonu daha once kullanilmamissa
+                    {
+                        frekans_check3[check_sayac3] = gram3_tmp; // gozden gecirildi listesine eklendi
+                        check_sayac3++;
+
+                        for (j = i + 1; j < gram3.Length; j++)
+                        {
+                            gram3_esit = string.Equals(gram3_tmp, gram3[j]);
+
+                            if (gram3_esit == true)
+                                frekans_degeri3++;
+                        }
+                        frekans_hesapla_3[frekans_hesapla_sayac3, 0] = gram3_tmp;
+                        frekans_hesapla_3[frekans_hesapla_sayac3, 1] = frekans_degeri3.ToString();
+                        frekans_hesapla_sayac3++;
+
+                        if (frekans_degeri3 > 50 && k <= ((kac_haber_okunacak / 4) * 3))//egitim verisi icin hazirlanan 3 gramlar (%75)
+                        {
+
+                            Boolean var3 = false;
+                            gram3_50[gram3_50_sayac, 0] = gram3_tmp;
+                            gram3_50[gram3_50_sayac, 1] = frekans_degeri3.ToString();
+                            gram3_50[gram3_50_sayac, 2] = rastgele_dizi[k, 0];
+                            gram3_50[gram3_50_sayac, 3] = rastgele_dizi[k, 1];
+
+                            gram3_50_sayac++;
+
+                            for (j = 0; j < farkli50_3sayac; j++)           //farkli50_2 
+                            {
+                                if (string.Equals(gram3_tmp, farkli50_3[j]) == true)
+                                    var3 = true;
+
+                            }
+                            if (var3 == false)
+                            {
+                                farkli50_3[farkli50_3sayac] = gram3_tmp;
+                                farkli50_3sayac++;
+                            }
+                        }
+                        if (frekans_degeri3 > 50 && k > ((kac_haber_okunacak / 4) * 3))//TEST VERISI icin hazirlanan 3 gramlar (%25)
+                        {
+
+                            Boolean var3 = false;
+                            test_verisi50_3[test_veri3_50_sayac, 0] = gram3_tmp;
+                            test_verisi50_3[test_veri3_50_sayac, 1] = frekans_degeri3.ToString();
+                            test_verisi50_3[test_veri3_50_sayac, 2] = rastgele_dizi[k, 0];
+                            test_verisi50_3[test_veri3_50_sayac, 3] = rastgele_dizi[k, 1];
+
+                            test_veri3_50_sayac++;
+
+                            for (j = 0; j < test_farkli50_3sayac; j++)           //farkli50_3
+                            {
+                                if (string.Equals(gram3_tmp, test_farkli50_3[j]) == true)
+                                    var3 = true;
+
+                            }
+                            if (var3 == false)
+                            {
+                                test_farkli50_3[farkli50_3sayac] = gram3_tmp;
+                                test_farkli50_3sayac++;
+                            }
+                        }
+                    }
+                }
+                //label1.Text = metin_uzunlugu.ToString();
+                label2.Text = gram2_sayac.ToString();
+                label3.Text = gram3_sayac.ToString();
+            }
+
+            for (i = 0; i < gram2_50_sayac; i++)
+                listBox2.Items.Add(gram2_50[i, 0].PadRight(5) + " - " + gram2_50[i, 1].PadRight(5) + " - " + gram2_50[i, 3].PadRight(10) + " - " + gram2_50[i, 2].PadRight(8));
+
+            for (i = 0; i < gram3_50_sayac; i++)
+                listBox3.Items.Add(gram3_50[i, 0].PadRight(3) + " - " + gram3_50[i, 1].PadRight(3) + " - " + gram3_50[i, 3] + " - " + gram3_50[i, 2]);
+
+            label7.Text = gram2_50_sayac.ToString();
+            label8.Text = gram3_50_sayac.ToString();
+
+            //test verilerini yazdir
+            for (i = 0; i < test_veri2_50_sayac; i++)
+                listBox9.Items.Add(test_verisi50_2[i, 0].PadRight(5) + " - " + test_verisi50_2[i, 1].PadRight(5) + " - " + test_verisi50_2[i, 3].PadRight(10) + " - " + test_verisi50_2[i, 2].PadRight(8));
+
+            for (i = 0; i < test_veri3_50_sayac; i++)
+                listBox10.Items.Add(test_verisi50_3[i, 0].PadRight(5) + " - " + test_verisi50_3[i, 1].PadRight(5) + " - " + test_verisi50_3[i, 3].PadRight(10) + " - " + test_verisi50_3[i, 2].PadRight(8));
+
+            for (i = 0; i <= ((kac_haber_okunacak / 4) * 3); i++)//egitim verisi haberlerini listeler
+                listBox11.Items.Add(rastgele_dizi[i, 0] + " - " + rastgele_dizi[i, 1]);
+
+            for (i = ((kac_haber_okunacak / 4) * 3) + 1; i < kac_haber_okunacak; i++)//egitim verisi haberlerini listeler
+                listBox12.Items.Add(rastgele_dizi[i, 0] + " - " + rastgele_dizi[i, 1]);
+
+            label17.Text = test_veri2_50_sayac.ToString();
+            label18.Text = test_veri3_50_sayac.ToString();
+        }
+
+        //veri egit//
+        string[,] p_oran = new string[5, 2]; // [kategorinin tum kategorilere orani] [haber turu]
+        string[] haber_tur = new string[5] { "ekonomi", "magazin", "saglik", "siyasi", "spor" };
+
+        double[] haber_toplam_frekans2 = new double[5]; //ekonomi, magazin, saglik, siyasi, spor ; toplam frekans degerleri
+        double[] haber_toplam_frekans3 = new double[5]; //ekonomi, magazin, saglik, siyasi, spor ; toplam frekans degerleri
+
+        string[] haber_isimleri2 = new string[100000];
+        int haber_isimleri_sayac2 = 0;
+
+        string[] haber_isimleri3 = new string[100000];
+        int haber_isimleri_sayac3 = 0;
+        double ekonomi_t, magazin_t, saglik_t, siyasi_t, spor_t;
+        double ekonomi_s, magazin_s, saglik_s, siyasi_s, spor_s;
+
+        private void Form1_Load(object sender, EventArgs e)
+        {
+
+        }
+
+        double frekans2, frekans3, toplam_frekans;
+
+        public void p_oran_fonk()
+        {
+            double p_oran_sayac = 0;
+            int i, j;
+            int haber_tur_sayac = 0;
+            double sonuc;
+            double gram_toplam;
+
+            for (i = 0; i < (p_oran.Length / 2); i++)
+            {
+                p_oran_sayac = 0;
+
+                for (j = 0; j < gram2_50_sayac; j++)
+                {
+                    if (string.Equals(haber_tur[haber_tur_sayac], gram2_50[j, 3]) == true)
+                        p_oran_sayac++;
+                }
+
+                for (j = 0; j < gram3_50_sayac; j++)
+                {
+                    if (string.Equals(haber_tur[haber_tur_sayac], gram3_50[j, 3]) == true)
+                        p_oran_sayac++;
+                }
+
+                gram_toplam = Convert.ToDouble(gram2_50_sayac + gram3_50_sayac);
+                sonuc = p_oran_sayac / gram_toplam;
+
+                p_oran[i, 0] = sonuc.ToString("0.0000");
+                p_oran[i, 1] = haber_tur[haber_tur_sayac];
+                haber_tur_sayac++;
+            }
+        }
+        public void kosullu_olasilik()
+        {
+            int i, j, k, l, m;
+            double toplam_frekans = 0;
+            double frekans;
+            double kosullu_olasilik;
+            double farkli50_sayac2;
+            double farkli50_sayac3;
+
+            for (k = 0; k < 5; k++)//her haber turunun toplam frekans degerleri                 - 2gram icin
+            {
+                frekans = 0;
+                for (j = 0; j < gram2_50_sayac; j++)
+                {
+
+                    if (string.Equals(haber_tur[k], gram2_50[j, 3]) == true)
+                    {
+                        frekans = Convert.ToDouble(gram2_50[j, 1]);/* double.Parse(gram2_50[j, 0]);*/
+                        haber_toplam_frekans2[k] += frekans;
+                    }
+                }
+            }
+            for (k = 0; k < 5; k++)//her haber turunun toplam frekans degerleri                - 3gram icin
+            {
+                frekans = 0;
+                for (j = 0; j < gram3_50_sayac; j++)
+                {
+                    if (string.Equals(haber_tur[k], gram3_50[j, 3]) == true)
+                    {
+                        frekans = Int32.Parse(gram3_50[j, 1]);
+                        haber_toplam_frekans3[k] += frekans;
+                    }
+                }
+            }
+            Boolean girdi = false;
+            for (k = 0; k < 5; k++)//2 gram icin
+            {
+                for (i = 0; i < farkli50_2sayac; i++)
+                {
+                    toplam_frekans = 0;
+                    frekans = 0;
+                    kosullu_olasilik = 0;
+
+                    girdi = false;
+
+                    for (j = 0; j < gram2_50_sayac; j++)
+                    {
+
+                        if ((string.Equals(farkli50_2[i], gram2_50[j, 0]) == true) && (string.Equals(haber_tur[k], gram2_50[j, 3]) == true))
+                        {
+                            frekans = Convert.ToDouble(gram2_50[j, 1]);
+                            toplam_frekans += frekans;
+                            girdi = true;
+                            kosullu_olasilik_indis2[k_olasilik_indis_sayac2] = j;
+                        }
+                    }
+                    /*if (k_olasilik_indis_sayac2 == 0)
+                        k_olasilik_indis_sayac2++;
+                    */
+                    if (girdi == true)
+                    {
+                        farkli50_sayac2 = Convert.ToDouble(farkli50_2sayac);
+                        kosullu_olasilik = (toplam_frekans + 1) / (haber_toplam_frekans2[k] + farkli50_sayac2);
+                        gram2_50[kosullu_olasilik_indis2[k_olasilik_indis_sayac2 /*- 1*/], k + 4] = kosullu_olasilik.ToString("0.00000");
+                        k_olasilik_indis_sayac2++;
+                    }
+
+                    //buradaydi
+
+                }
+            }
+            //buradan baslar
+            /*Boolean kosul = false;
+
+            int[] kosullu_olasilik_indis_yedek = new int[k_olasilik_indis_sayac2]; //yedek dizi
+            for (l = 0; l < k_olasilik_indis_sayac2; l++)
+            {
+                kosullu_olasilik_indis_yedek[l] = kosullu_olasilik_indis2[l];
+            }
+            for (l = 0; l < k_olasilik_indis_sayac2; l++)
+            {
+                kosul = false;
+                for (m = l + 1; m < k_olasilik_indis_sayac2; m++)
+                {
+                    if (string.Equals(gram2_50[kosullu_olasilik_indis2[l], 0], gram2_50[kosullu_olasilik_indis_yedek[m], 0]))
+                    {
+                        kosul = true;
+                        int haber = 4;
+                        double freq1 = 0;
+                        double freq2 = 0;
+                        double toplam = 0;
+                        double deger = 0;
+
+                        while (haber != 9)
+                        {
+                            freq1 = 0;
+                            freq2 = 0;
+                            toplam = 0;
+                            deger = Convert.ToDouble(gram2_50[kosullu_olasilik_indis2[l], haber]);
+
+                            if (deger<=1)
+                            {
+                                freq1 = Convert.ToDouble(gram2_50[kosullu_olasilik_indis2[l], haber]);
+                                freq2 = Convert.ToDouble(gram2_50[kosullu_olasilik_indis_yedek[m], haber]);
+                                toplam = freq1 + freq2;
+
+                                gram2_50[kosullu_olasilik_indis2[l], haber] = toplam.ToString("0.00000");
+                            }
+                            haber++;
+
+                        }
+                        kosullu_olasilik_indis_yedek[m] = 90000;
+                    }
+                }
+                if (kosul == true)
+                {
+                    kosullu_olasilik_tekil2[kosullu_olasilik_tekil_sayac2] = l;
+                    kosullu_olasilik_tekil_sayac2++;
+                }
+            } //son */
+            for (k = 0; k < 5; k++)//3 gram icin
+            {
+                for (i = 0; i < farkli50_3sayac; i++)
+                {
+                    toplam_frekans = 0;
+                    frekans = 0;
+                    kosullu_olasilik = 0;
+
+                    girdi = false;
+
+                    for (j = 0; j < gram3_50_sayac; j++)
+                    {
+
+                        if ((string.Equals(farkli50_3[i], gram3_50[j, 0]) == true) && (string.Equals(haber_tur[k], gram3_50[j, 3]) == true))
+                        {
+                            frekans = Convert.ToDouble(gram3_50[j, 1]);
+                            toplam_frekans += frekans;
+                            girdi = true;
+                            kosullu_olasilik_indis3[k_olasilik_indis_sayac3] = j;
+                        }
+                    }
+                    if (girdi == true)
+                    {
+                        farkli50_sayac3 = Convert.ToDouble(farkli50_3sayac);
+                        kosullu_olasilik = (toplam_frekans + 1) / (haber_toplam_frekans3[k] + farkli50_sayac3);
+                        gram3_50[kosullu_olasilik_indis3[k_olasilik_indis_sayac3 /*- 1*/], k + 4] = kosullu_olasilik.ToString("0.00000");
+                        k_olasilik_indis_sayac3++;
+                    }
+                }
+            }
+        }
+        public void test()
+        {
+            //string[,] test_sonuclari = new string[(kac_haber_okunacak / 4) + 1, 3]; //[haber ismi] [haber kategorisi] [0,1,2,3,4 haber turu]
+            //0: ekonomi, 1: magazin, 2: saglik, 3: siyasi, 4: spor
+
+            int i, j, k, l;
+            //2gram
+            double donustur2;
+            string[] haber_isimleri_taslak2 = new string[100000];
+            int haber_isimleri_taslak_sayac2 = 0;
+
+            //for(i= (kac_haber_okunacak / 4 * 3)+1; i<kac_haber_okunacak;i++)//%25'lik test verisi dongusu
+            Boolean bulundu2;
+            for (i = 0; i < test_veri2_50_sayac; i++)//test verilerine esit egitimden gecen 2 gram degeri varsa kosullu ola. sonucunu atar
+            {                                        //esit deger yoksa 1 atar 
+                bulundu2 = false;
+                for (j = 0; j < k_olasilik_indis_sayac2; j++)
+                {
+                    if (string.Equals(test_verisi50_2[i, 0], gram2_50[kosullu_olasilik_indis2[j], 0]) == true)//test verisi 2 gram, 2 gram dizisinde varsa
+                    {
+                        bulundu2 = true;
+                        for (k = 0; k < 5; k++)
+                        {
+                            donustur2 = Convert.ToDouble(gram2_50[kosullu_olasilik_indis2[j], k + 4]);
+
+                            if (donustur2 > 0 && donustur2 <= 1)
+                                test_verisi50_2[i, k + 4] = donustur2.ToString("0.00000");
+                        }
+                    }
+                }
+                if (bulundu2 == false)//test verisi 2 gramlarda tespit edilmemisse olasiligi etkilememesi adina haber degerlerine 1 veriyoruz.
+                {
+                    for (j = 0; j < 5; j++)
+                        test_verisi50_2[i, j + 4] = "1";
+                }
+            }
+            //3gram
+            double donustur3;
+            string[] haber_isimleri_taslak3 = new string[100000];
+            int haber_isimleri_taslak_sayac3 = 0;
+
+            //for(i= (kac_haber_okunacak / 4 * 3)+1; i<kac_haber_okunacak;i++)//%25'lik test verisi dongusu
+            Boolean bulundu3;
+            for (i = 0; i < test_veri3_50_sayac; i++)//test verilerine esit egitimden gecen 3 gram degeri varsa kosullu ola. sonucunu atar
+            {                                        //esit deger yoksa 1 atar 
+                bulundu3 = false;
+                for (j = 0; j < k_olasilik_indis_sayac3; j++)
+                {
+                    if (string.Equals(test_verisi50_3[i, 0], gram3_50[kosullu_olasilik_indis3[j], 0]) == true)//test verisi 3 gram, 3 gram dizisinde varsa
+                    {
+                        bulundu3 = true;
+                        for (k = 0; k < 5; k++)
+                        {
+                            donustur3 = Convert.ToDouble(gram3_50[kosullu_olasilik_indis3[j], k + 4]);
+
+                            if (donustur3 > 0 && donustur3 <= 1)
+                                test_verisi50_3[i, k + 4] = donustur3.ToString("0.00000");
+                        }
+                    }
+                }
+                if (bulundu3 == false)//test verisi 3 gramlarda tespit edilmemisse olasiligi etkilememesi adina haber degerlerine 1 veriyoruz.
+                {
+                    for (j = 0; j < 5; j++)
+                        test_verisi50_3[i, j + 4] = "1";
+                }
+            }
+
+            //kac tane haber oldugunu bul 2gram
+            for (i = 0; i < test_veri2_50_sayac; i++)
+                haber_isimleri_taslak2[i] = test_verisi50_2[i, 2];
+
+            //kac tane haber oldugunu bul 3gram
+            for (i = 0; i < test_veri3_50_sayac; i++)
+                haber_isimleri_taslak3[i] = test_verisi50_3[i, 2];
+
+
+            haber_isimleri_taslak_sayac2 = test_veri2_50_sayac;
+            haber_isimleri_taslak_sayac3 = test_veri3_50_sayac;
+
+            for (i = 0; i < haber_isimleri_taslak_sayac2 - 1; i++)// 2 gram
+            {
+                for (j = i + 1; j < haber_isimleri_taslak_sayac2; j++)
+                {
+                    if (string.Equals(haber_isimleri_taslak2[i], haber_isimleri_taslak2[j]) == true)
+                    {
+                        haber_isimleri_taslak2[j] = "";
+                    }
+                }
+            }
+            for (i = 0; i < haber_isimleri_taslak_sayac2; i++)
+            {
+                if (string.Equals(haber_isimleri_taslak2[i], "") == false)
+                {
+                    haber_isimleri2[haber_isimleri_sayac2] = haber_isimleri_taslak2[i];
+                    haber_isimleri_sayac2++;
+                }
+            }
+
+            for (i = 0; i < haber_isimleri_taslak_sayac3 - 1; i++)// 3 gram
+            {
+                for (j = i + 1; j < haber_isimleri_taslak_sayac3; j++)
+                {
+                    if (string.Equals(haber_isimleri_taslak3[i], haber_isimleri_taslak3[j]) == true)
+                    {
+                        haber_isimleri_taslak3[j] = "";
+                    }
+                }
+            }
+            for (i = 0; i < haber_isimleri_taslak_sayac3; i++)
+            {
+                if (string.Equals(haber_isimleri_taslak3[i], "") == false)
+                {
+                    haber_isimleri3[haber_isimleri_sayac3] = haber_isimleri_taslak3[i];
+                    haber_isimleri_sayac3++;
+                }
+            }
+
+            double test_veri_olasilik2;
+            double beklenen_deger2;
+            double test_veri_olasilik3;
+            double beklenen_deger3;
+            double p_oran_haber;
+
+            for (i = 0; i < test_veri2_50_sayac; i++)//test sonuclarini belirler  -  2 gram
+            {
+                for (j = 0; j < 5; j++)
+                {
+                    test_veri_olasilik2 = Convert.ToDouble(test_verisi50_2[i, j + 4]);
+                    p_oran_haber = Convert.ToDouble(p_oran[j, 0]);
+
+                    beklenen_deger2 = test_veri_olasilik2 * p_oran_haber;
+                    test_verisi50_2[i, j + 9] = beklenen_deger2.ToString("0.00000");
+                }
+            }
+            for (i = 0; i < test_veri3_50_sayac; i++)//test sonuclarini belirler  -  3 gram
+            {
+                for (j = 0; j < 5; j++)
+                {
+                    test_veri_olasilik3 = Convert.ToDouble(test_verisi50_3[i, j + 4]);
+                    p_oran_haber = Convert.ToDouble(p_oran[j, 0]);
+
+                    beklenen_deger3 = test_veri_olasilik3 * p_oran_haber;
+                    test_verisi50_3[i, j + 9] = beklenen_deger3.ToString("0.00000");
+                }
+            }
+
+            int[] test_verisi_indis2 = new int[100000];
+            int test_verisi_indis_sayac2 = 0;
+            double haber_sayaci2;
+            int[] test_verisi_indis3 = new int[100000];
+            int test_verisi_indis_sayac3 = 0;
+            double haber_sayaci3;
+
+            //2gram
+            for (i = 0; i < haber_isimleri_sayac2; i++)//beklenen degerleri bulunmus 2gramlari toplayip haber kategorisini belirle.
+            {
+                haber_sayaci2 = 0;
+                for (j = 0; j < test_veri2_50_sayac; j++)
+                {
+                    if (string.Equals(test_verisi50_2[j, 2], haber_isimleri2[i]) == true)
+                    {
+                        haber_sayaci2++;
+                        ekonomi_t += Convert.ToDouble(test_verisi50_2[j, 9]);
+                        magazin_t += Convert.ToDouble(test_verisi50_2[j, 10]);
+                        saglik_t += Convert.ToDouble(test_verisi50_2[j, 11]);
+                        siyasi_t += Convert.ToDouble(test_verisi50_2[j, 12]);
+                        spor_t += Convert.ToDouble(test_verisi50_2[j, 13]);
+
+                        test_verisi_indis2[test_verisi_indis_sayac2] = j;
+                        test_verisi_indis_sayac2++;
+                    }
+                }
+                for (j = 0; j < test_verisi_indis_sayac2; j++)
+                {
+                    test_verisi50_2[test_verisi_indis2[j], 14] = (ekonomi_t / haber_sayaci2).ToString("0.00000");
+                    ekonomi_s = ekonomi_t / haber_sayaci2;
+
+                    test_verisi50_2[test_verisi_indis2[j], 15] = (magazin_t / haber_sayaci2).ToString("0.00000");
+                    magazin_s = magazin_t / haber_sayaci2;
+
+                    test_verisi50_2[test_verisi_indis2[j], 16] = (saglik_t / haber_sayaci2).ToString("0.00000");
+                    saglik_s = saglik_t / haber_sayaci2;
+
+                    test_verisi50_2[test_verisi_indis2[j], 17] = (siyasi_t / haber_sayaci2).ToString("0.00000");
+                    siyasi_s = siyasi_t / haber_sayaci2;
+
+                    test_verisi50_2[test_verisi_indis2[j], 18] = (spor_t / haber_sayaci2).ToString("0.00000");
+                    spor_s = spor_t / haber_sayaci2;
+
+                    if (ekonomi_s > magazin_s && ekonomi_s > saglik_s && ekonomi_s > siyasi_s && ekonomi_s > spor_s)
+                        test_verisi50_2[test_verisi_indis2[j], 24] = "ekonomi";
+
+                    if (magazin_s > ekonomi_s && magazin_s > saglik_s && magazin_s > siyasi_s && magazin_s > spor_s)
+                        test_verisi50_2[test_verisi_indis2[j], 24] = "magazin";
+
+                    if (saglik_s > ekonomi_s && saglik_s > magazin_s && saglik_s > siyasi_s && saglik_s > spor_s)
+                        test_verisi50_2[test_verisi_indis2[j], 24] = "saglik";
+
+                    if (siyasi_s > ekonomi_s && siyasi_s > magazin_s && siyasi_s > saglik_s && siyasi_s > spor_s)
+                        test_verisi50_2[test_verisi_indis2[j], 24] = "siyasi";
+
+                    if (spor_s > ekonomi_s && spor_s > magazin_s && spor_s > saglik_s && spor_s > siyasi_s)
+                        test_verisi50_2[test_verisi_indis2[j], 24] = "spor";
+                }
+                test_verisi_indis_sayac2 = 0;
+                ekonomi_t = 0;
+                magazin_t = 0;
+                saglik_t = 0;
+                siyasi_t = 0;
+                spor_t = 0;
+            }
+            //3 gram
+            for (i = 0; i < haber_isimleri_sayac3; i++)//beklenen degerleri bulunmus 2gramlari toplayip haber kategorisini belirle.
+            {
+                haber_sayaci3 = 0;
+                for (j = 0; j < test_veri3_50_sayac; j++)
+                {
+                    if (string.Equals(test_verisi50_3[j, 2], haber_isimleri3[i]) == true)
+                    {
+                        haber_sayaci3++;
+                        ekonomi_t += Convert.ToDouble(test_verisi50_3[j, 9]);
+                        magazin_t += Convert.ToDouble(test_verisi50_3[j, 10]);
+                        saglik_t += Convert.ToDouble(test_verisi50_3[j, 11]);
+                        siyasi_t += Convert.ToDouble(test_verisi50_3[j, 12]);
+                        spor_t += Convert.ToDouble(test_verisi50_3[j, 13]);
+
+                        test_verisi_indis3[test_verisi_indis_sayac3] = j;
+                        test_verisi_indis_sayac3++;
+                    }
+                }
+                for (j = 0; j < test_verisi_indis_sayac3; j++)
+                {
+                    test_verisi50_3[test_verisi_indis3[j], 14] = (ekonomi_t / haber_sayaci3).ToString("0.00000");
+                    ekonomi_s = ekonomi_t / haber_sayaci3;
+
+                    test_verisi50_3[test_verisi_indis3[j], 15] = (magazin_t / haber_sayaci3).ToString("0.00000");
+                    magazin_s = magazin_t / haber_sayaci3;
+
+                    test_verisi50_3[test_verisi_indis3[j], 16] = (saglik_t / haber_sayaci3).ToString("0.00000");
+                    saglik_s = saglik_t / haber_sayaci3;
+
+                    test_verisi50_3[test_verisi_indis3[j], 17] = (siyasi_t / haber_sayaci3).ToString("0.00000");
+                    siyasi_s = siyasi_t / haber_sayaci3;
+
+                    test_verisi50_3[test_verisi_indis3[j], 18] = (spor_t / haber_sayaci3).ToString("0.00000");
+                    spor_s = spor_t / haber_sayaci3;
+
+                    if (ekonomi_s > magazin_s && ekonomi_s > saglik_s && ekonomi_s > siyasi_s && ekonomi_s > spor_s)
+                        test_verisi50_3[test_verisi_indis3[j], 24] = "ekonomi";
+
+                    if (magazin_s > ekonomi_s && magazin_s > saglik_s && magazin_s > siyasi_s && magazin_s > spor_s)
+                        test_verisi50_3[test_verisi_indis3[j], 24] = "magazin";
+
+                    if (saglik_s > ekonomi_s && saglik_s > magazin_s && saglik_s > siyasi_s && saglik_s > spor_s)
+                        test_verisi50_3[test_verisi_indis3[j], 24] = "saglik";
+
+                    if (siyasi_s > ekonomi_s && siyasi_s > magazin_s && siyasi_s > saglik_s && siyasi_s > spor_s)
+                        test_verisi50_3[test_verisi_indis3[j], 24] = "siyasi";
+
+                    if (spor_s > ekonomi_s && spor_s > magazin_s && spor_s > saglik_s && spor_s > siyasi_s)
+                        test_verisi50_3[test_verisi_indis3[j], 24] = "spor";
+                }
+                test_verisi_indis_sayac3 = 0;
+                ekonomi_t = 0;
+                magazin_t = 0;
+                saglik_t = 0;
+                siyasi_t = 0;
+                spor_t = 0;
+            }
+
+            for (k = 0; k < haber_isimleri_sayac3; k++)
+            {
+                for (i = 0; i < test_veri3_50_sayac; i++)//2 gram ve 3 gramlarin bir araya getirilmesi
+                {
+                    for (j = 0; j < test_veri2_50_sayac; j++)
+                    {
+                        if (string.Equals(test_verisi50_3[i, 2], haber_isimleri3[k]) == true && string.Equals(test_verisi50_2[j, 2], haber_isimleri3[k]) == true)
+                        {
+                            frekans2 += Convert.ToDouble(test_verisi50_2[j, 1]);
+                            frekans3 += Convert.ToDouble(test_verisi50_3[i, 1]);
+                        }
+                    }
+                }
+                toplam_frekans = frekans2 + frekans3;
+
+                for (i = 0; i < test_veri3_50_sayac; i++)
+                {
+                    for (j = 0; j < test_veri2_50_sayac; j++)
+                    {
+                        if (string.Equals(test_verisi50_3[i, 2], haber_isimleri3[k]) == true && string.Equals(test_verisi50_2[j, 2], haber_isimleri3[k]) == true)
+                        {
+                            for (l = 0; l < 5; l++)
+                            {
+                                double a = Convert.ToDouble(test_verisi50_2[j, l + 14]);
+                                a /= toplam_frekans;
+                                a *= frekans2;
+                                test_verisi50_2[j, l + 19] = a.ToString("0.00000");
+
+                                double b = Convert.ToDouble(test_verisi50_3[i, l + 14]);
+                                b /= toplam_frekans;
+                                b *= frekans3;
+                                test_verisi50_3[i, l + 19] = b.ToString("0.00000");
+                            }
+                            ekonomi_s = Convert.ToDouble(test_verisi50_2[j, 19]);
+                            magazin_s = Convert.ToDouble(test_verisi50_2[j, 20]);
+                            saglik_s = Convert.ToDouble(test_verisi50_2[j, 21]);
+                            siyasi_s = Convert.ToDouble(test_verisi50_2[j, 22]);
+                            spor_s = Convert.ToDouble(test_verisi50_2[j, 23]);
+
+                            //s=2gram , t=3gram
+
+                            ekonomi_t = Convert.ToDouble(test_verisi50_3[i, 19]);
+                            magazin_t = Convert.ToDouble(test_verisi50_3[i, 20]);
+                            saglik_t = Convert.ToDouble(test_verisi50_3[i, 21]);
+                            siyasi_t = Convert.ToDouble(test_verisi50_3[i, 22]);
+                            spor_t = Convert.ToDouble(test_verisi50_3[i, 23]);
+
+                            //2gram
+                            if (ekonomi_s > magazin_s && ekonomi_s > saglik_s && ekonomi_s > siyasi_s && ekonomi_s > spor_s)
+                                test_verisi50_2[j, 25] = "ekonomi";
+
+                            if (magazin_s > ekonomi_s && magazin_s > saglik_s && magazin_s > siyasi_s && magazin_s > spor_s)
+                                test_verisi50_2[j, 25] = "magazin";
+
+                            if (saglik_s > ekonomi_s && saglik_s > magazin_s && saglik_s > siyasi_s && saglik_s > spor_s)
+                                test_verisi50_2[j, 25] = "saglik";
+
+                            if (siyasi_s > ekonomi_s && siyasi_s > magazin_s && siyasi_s > saglik_s && siyasi_s > spor_s)
+                                test_verisi50_2[j, 25] = "siyasi";
+
+                            if (spor_s > ekonomi_s && spor_s > magazin_s && spor_s > saglik_s && spor_s > siyasi_s)
+                                test_verisi50_2[j, 25] = "spor";
+
+                            //3 gram
+                            if (ekonomi_t > magazin_t && ekonomi_t > saglik_t && ekonomi_t > siyasi_t && ekonomi_t > spor_t)
+                                test_verisi50_3[i, 25] = "ekonomi";
+
+                            if (magazin_t > ekonomi_t && magazin_t > saglik_t && magazin_t > siyasi_t && magazin_t > spor_t)
+                                test_verisi50_3[i, 25] = "magazin";
+
+                            if (saglik_t > ekonomi_t && saglik_t > magazin_t && saglik_t > siyasi_t && saglik_t > spor_t)
+                                test_verisi50_3[i, 25] = "saglik";
+
+                            if (siyasi_t > ekonomi_t && siyasi_t > magazin_t && siyasi_t > saglik_t && siyasi_t > spor_t)
+                                test_verisi50_3[i, 25] = "siyasi";
+
+                            if (spor_t > ekonomi_t && spor_t > magazin_t && spor_t > saglik_t && spor_t > siyasi_t)
+                                test_verisi50_3[i, 25] = "spor";
+
+                        }
+                    }
+                }
+            }
+            for (i = 0; i < test_veri2_50_sayac; i++)
+            {
+                if (string.Equals(test_verisi50_2[i, 25], null) == true)
+                {
+                    test_verisi50_2[i, 25] = test_verisi50_2[i, 24];
+                }
+            }
+            for (i = 0; i < test_veri3_50_sayac; i++)
+            {
+                if (string.Equals(test_verisi50_3[i, 25], null) == true)
+                {
+                    test_verisi50_3[i, 25] = test_verisi50_3[i, 24];
+                }
+            }
+        }
+        public void precision_recall_fmeasure()
+        {
+            int i = 0, j, k;
+            double recall_dogru_sayac = 0;
+            double recall_yanlis_sayac = 0;
+            double precision_toplam_sayac = 0;
+            double recall_toplam_sayac;
+            double precision_var_sayac = 0;
+            double precision_yok_sayac = 0;
+
+            double precision_sonuc;
+            double recall_sonuc;
+            double fmeasure_sonuc;
+
+            Boolean cikis;
+
+            for (k = 0; k < haber_isimleri_sayac2; k++)
+            {
+                i = 0;
+                cikis = false;
+                while (cikis != true)
+                {
+                    if (string.Equals(test_verisi50_2[i, 2], haber_isimleri2[k]) == true)
+                    {
+                        if (string.Equals(test_verisi50_2[i, 25], test_verisi50_2[i, 3]) == true)
+                        {
+                            recall_dogru_sayac++;
+
+                        }
+                        if (string.Equals(test_verisi50_2[i, 25], test_verisi50_2[i, 3]) == false)
+                        {
+                            recall_yanlis_sayac++;
+                        }
+                        cikis = true;
+                    }
+                    i++;
+
+                    if (i == test_veri2_50_sayac)
+                        cikis = true;
+                }
+            }
+
+            for (i = 0; i < test_veri2_50_sayac; i++)
+            {
+                for (j = 0; j < farkli50_2sayac; j++)
+                {
+                    if (string.Equals(test_verisi50_2[i, 0], farkli50_2[j]) == true)
+                    {
+                        if (string.Equals(test_verisi50_2[i, 3], test_verisi50_2[i, 25]) == true)
+                            precision_var_sayac++;
+                    }
+                }
+                precision_yok_sayac++;
+            }
+
+            precision_toplam_sayac = precision_var_sayac + precision_yok_sayac;
+            recall_toplam_sayac = recall_dogru_sayac + recall_yanlis_sayac;
+            precision_sonuc = precision_var_sayac / precision_toplam_sayac;
+            recall_sonuc = recall_dogru_sayac / recall_toplam_sayac;
+            fmeasure_sonuc = (2 * (precision_sonuc * recall_sonuc)) / (precision_sonuc + recall_sonuc);
+
+            label29.Text = precision_sonuc.ToString("0.0000");
+            label30.Text = recall_sonuc.ToString("0.0000");
+            label31.Text = fmeasure_sonuc.ToString("0.0000");
+        }
+
+        private void veri_egit_Click(object sender, EventArgs e)
+        {
+            int i, j;
+            p_oran_fonk();
+            kosullu_olasilik();
+            test();
+            precision_recall_fmeasure();
+
+            for (i = 0; i < 5; i++)
+                listBox4.Items.Add(p_oran[i, 0] + " - " + p_oran[i, 1]);
+
+            for (i = 0; i < farkli50_2sayac; i++) //birbirinden farkli 2 gramlari listeler
+                listBox5.Items.Add(farkli50_2[i]);
+
+            for (i = 0; i < farkli50_3sayac; i++) //birbirinden farkli 3 gramlari listeler
+                listBox6.Items.Add(farkli50_3[i]);
+
+            for (i = 0; i < k_olasilik_indis_sayac2; i++)//gozden gecirilen her gram icin; haber kategorilerine gore kosullu olasiliklarini listeler
+                listBox7.Items.Add(gram2_50[kosullu_olasilik_indis2[i], 0] + " - " + gram2_50[kosullu_olasilik_indis2[i], 4] + " : " + gram2_50[kosullu_olasilik_indis2[i], 5] + " : " + gram2_50[kosullu_olasilik_indis2[i], 6] + " : " + gram2_50[kosullu_olasilik_indis2[i], 7] + " : " + gram2_50[kosullu_olasilik_indis2[i], 8]);
+
+            for (i = 0; i < k_olasilik_indis_sayac3; i++)//gozden gecirilen her gram icin; haber kategorilerine gore kosullu olasiliklarini listeler
+                listBox8.Items.Add(gram3_50[kosullu_olasilik_indis3[i], 0] + " - " + gram3_50[kosullu_olasilik_indis3[i], 4] + " : " + gram3_50[kosullu_olasilik_indis3[i], 5] + " : " + gram3_50[kosullu_olasilik_indis3[i], 6] + " : " + gram3_50[kosullu_olasilik_indis3[i], 7] + " : " + gram3_50[kosullu_olasilik_indis3[i], 8]);
+
+            for (i = 0; i < test_veri2_50_sayac; i++)
+                listBox13.Items.Add(test_verisi50_2[i, 0] + "- " + test_verisi50_2[i, 4] + " : " + test_verisi50_2[i, 5] + " : " + test_verisi50_2[i, 6] + " : " + test_verisi50_2[i, 7] + " : " + test_verisi50_2[i, 8]);
+
+            for (i = 0; i < haber_isimleri_sayac2; i++)
+                listBox14.Items.Add(haber_isimleri2[i]);
+
+            for (i = 0; i < test_veri2_50_sayac; i++)
+                listBox15.Items.Add(test_verisi50_2[i, 0] + "- " + test_verisi50_2[i, 9] + " : " + test_verisi50_2[i, 10] + " : " + test_verisi50_2[i, 11] + " : " + test_verisi50_2[i, 12] + " : " + test_verisi50_2[i, 13]);
+            
+            for (i = 0; i < test_veri2_50_sayac; i++)
+                listBox16.Items.Add(test_verisi50_2[i, 0] + "- " + test_verisi50_2[i, 14] + " : " + test_verisi50_2[i, 15] + " : " + test_verisi50_2[i, 16] + " : " + test_verisi50_2[i, 17] + " : " + test_verisi50_2[i, 18] + " - " + test_verisi50_2[i, 2] + " - " + test_verisi50_2[i, 3] + " - " +/* test_verisi50_2[i, 24] + " - " +*/ test_verisi50_2[i, 25]);
+
+            for (i = 0; i < test_veri3_50_sayac; i++)
+                listBox17.Items.Add(test_verisi50_3[i, 0] + "- " + test_verisi50_3[i, 14] + " : " + test_verisi50_3[i, 15] + " : " + test_verisi50_3[i, 16] + " : " + test_verisi50_3[i, 17] + " : " + test_verisi50_3[i, 18] + " - " + test_verisi50_3[i, 2] + " - " + test_verisi50_3[i, 3] + " - " +/* test_verisi50_3[i, 24] + " - " +*/ test_verisi50_3[i, 25]);
+
+            for (i = 0; i < test_veri2_50_sayac; i++)
+                listBox18.Items.Add(test_verisi50_2[i, 0] + "- " + test_verisi50_2[i, 19] + " : " + test_verisi50_2[i, 20] + " : " + test_verisi50_2[i, 21] + " : " + test_verisi50_2[i, 22] + " : " + test_verisi50_2[i, 23] + " - " + test_verisi50_2[i, 3] + " - " + test_verisi50_2[i, 25]);
+
+
+            //listBox8.Visible = false;
+            label6.Text = farkli50_2sayac.ToString();
+            label9.Text = farkli50_3sayac.ToString();
+            listBox18.Visible = false;
+        }
+    }
+}
